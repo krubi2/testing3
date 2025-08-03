@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Navigate to Location</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    #arrow {
+      font-size: 80px;
+      transition: transform 0.3s ease-out;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 10px;
+      width: 80%;
+    }
+    #status {
+      margin-top: 20px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Navigate to Destination</h2>
+  <input type="text" id="lat" placeholder="Destination Latitude" value="7.653511">
+  <input type="text" id="lon" placeholder="Destination Longitude" value="80.341705">
+  <br>
+  <button onclick="startNavigation()">Start Navigation</button>
+
+  <div id="arrow">🧭</div>
+  <div id="status">Waiting for GPS...</div>
+
+  <script>
+    let targetLat = null;
+    let targetLon = null;
+    let currentLat = null;
+    let currentLon = null;
+    let watchId = null;
+    let heading = 0;
+
+    function startNavigation() {
+      targetLat = parseFloat(document.getElementById("lat").value);
+      targetLon = parseFloat(document.getElementById("lon").value);
+      if (isNaN(targetLat) || isNaN(targetLon)) {
+        alert("Enter valid latitude and longitude!");
+        return;
+      }
+
+      document.getElementById("status").innerText = "Getting GPS location...";
+
+      // Watch user location
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(onLocationUpdate, onError, {
+          enableHighAccuracy: true,
+          maximumAge: 1000
+        });
+      } else {
+        alert("Geolocation is not supported.");
+      }
+
+      // Listen to compass
+      window.addEventListener("deviceorientationabsolute", updateHeading, true);
+      window.addEventListener("deviceorientation", updateHeading, true);
+    }
+
+    function onLocationUpdate(position) {
+      currentLat = position.coords.latitude;
+      currentLon = position.coords.longitude;
+
+      const distance = getDistanceFromLatLonInMeters(currentLat, currentLon, targetLat, targetLon);
+      const bearing = getBearing(currentLat, currentLon, targetLat, targetLon);
+      const rotateDeg = bearing - heading;
+
+      const arrow = document.getElementById("arrow");
+      arrow.style.transform = `rotate(${rotateDeg}deg)`;
+
+      if (distance < 15) {
+        document.getElementById("status").innerText = "🎉 You have reached the destination!";
+        navigator.geolocation.clearWatch(watchId);
+      } else {
+        document.getElementById("status").innerText = `Distance: ${distance.toFixed(1)} m`;
+      }
+    }
+
+    function onError(err) {
+      console.error(err);
+      document.getElementById("status").innerText = "GPS Error: " + err.message;
+    }
+
+    function updateHeading(e) {
+      if (e.absolute || e.webkitCompassHeading) {
+        heading = e.webkitCompassHeading || e.alpha || 0;
+      } else {
+        heading = e.alpha || 0;
+      }
+    }
+
+    function getBearing(lat1, lon1, lat2, lon2) {
+      const dLon = toRad(lon2 - lon1);
+      const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+      const x =
+        Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+        Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+      return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    }
+
+    function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // Radius of the earth in meters
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function toRad(deg) {
+      return deg * (Math.PI / 180);
+    }
+
+    function toDeg(rad) {
+      return rad * (180 / Math.PI);
+    }
+  </script>
+</body>
+</html>
